@@ -1,4 +1,3 @@
 {
-  "buildCommand": "node scripts/build.mjs",
-  "outputDirectory": "public"
+  "buildCommand": "node scripts/build.mjs"
 }

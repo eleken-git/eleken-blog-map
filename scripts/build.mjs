@@ -1,11 +1,10 @@
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const SITE_ID = '5e8b3356a5a8f5321855bbe7';
 const COLL_ID = '6368f41dd433865719aa82cd';
 const TOKEN = process.env.WEBFLOW_TOKEN;
 
@@ -77,16 +76,11 @@ async function build() {
 
   console.log(`Built ${nodes.length} nodes.`);
 
-  mkdirSync(join(ROOT, 'public'), { recursive: true });
-
   const template = readFileSync(join(ROOT, 'src', 'eleken-blog-map.js'), 'utf8');
   const output = template.replace('/*NODES_PLACEHOLDER*/[]', JSON.stringify(nodes));
-  writeFileSync(join(ROOT, 'public', 'eleken-blog-map.js'), output);
+  writeFileSync(join(ROOT, 'eleken-blog-map.js'), output);
 
-  copyFileSync(join(ROOT, 'index.html'), join(ROOT, 'public', 'index.html'));
-  copyFileSync(join(ROOT, 'eleken-blog-map.css'), join(ROOT, 'public', 'eleken-blog-map.css'));
-
-  console.log('Build complete → public/');
+  console.log('Build complete → eleken-blog-map.js');
 }
 
 build();
