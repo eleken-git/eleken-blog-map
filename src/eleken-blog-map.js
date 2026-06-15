@@ -267,13 +267,13 @@ function clearFocusedPost(){
 node.on("mouseenter",(e,d)=>{
   emphasize(d);
   sim.force("hover-repulse",d3.forceManyBody().strength(n=>n===d?-280:0))
-     .alphaTarget(0.10).restart();
+     .alpha(0.3).alphaTarget(0).restart();
   tipT.textContent=d.name; tipD.textContent=d.date; tipS.textContent=d.slug; tip.style.opacity=1;
 })
     .on("mousemove",e=>{ let x=e.clientX+16,y=e.clientY+16;
         if(x+300>window.innerWidth)x=e.clientX-300; if(y+120>window.innerHeight)y=e.clientY-120;
         tip.style.left=x+"px"; tip.style.top=y+"px"; })
-    .on("mouseleave",(e,d)=>{ sim.force("hover-repulse",null).alphaTarget(0); resetEmph(d); })
+    .on("mouseleave",(e,d)=>{ sim.force("hover-repulse",null).alpha(0.2).alphaTarget(0).restart(); resetEmph(d); })
     .on("click",(e,d)=>{ e.stopPropagation(); focusPost(d); });
 
 function focusNode(d){ const k=10,cx=SB+(W-SB)/2,cy=H/2;
