@@ -22,7 +22,25 @@
 <div id="hint" class="hud">
   <span><b>Зум</b> колесом · <b>Тягни</b> фон / точку · <b>Наведи</b> — назва + дата · <b>Клік</b> — фокус</span>
   <button id="resetView" type="button" title="Повернути карту до початку" aria-label="Повернути карту до початку">↺</button>
+  <button id="helpToggle" type="button" title="Показати підказки" aria-label="Показати підказки" aria-expanded="false" aria-controls="helpPanel">?</button>
 </div>
+
+<section id="helpPanel" class="hud" role="dialog" aria-labelledby="helpTitle" hidden>
+  <div class="help-top">
+    <h2 id="helpTitle">Як користуватись картою</h2>
+    <button id="helpClose" type="button" aria-label="Закрити підказки">x</button>
+  </div>
+  <ul class="help-list">
+    <li><b>Колесо миші</b><span>наблизити або віддалити карту.</span></li>
+    <li><b>Фон карти</b><span>тягни, щоб рухати мінімапи.</span></li>
+    <li><b>Крапка</b><span>клік відкриває статтю на карті й підсвічує її в меню.</span></li>
+    <li><b>Рядок статті</b><span>клік по всій плашці фокусує відповідну крапку.</span></li>
+    <li><b>◎ біля року</b><span>показує тільки одну мінімапу.</span></li>
+    <li><b>⧉ / ↗</b><span>копіює slug або відкриває статтю.</span></li>
+    <li><b>↺ або Esc</b><span>повертає карту до стартового стану.</span></li>
+  </ul>
+  <button id="helpGotIt" type="button">Зрозуміло</button>
+</section>
 </div><!-- /#wrap -->
 <div id="tip"><div class="t"></div><span class="d"></span><div class="s"></div></div>
 

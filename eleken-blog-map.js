@@ -445,7 +445,44 @@ function applyFilter(){
 document.getElementById("search").addEventListener("input",e=>{ query=e.target.value.trim().toLowerCase(); applyFilter(); });
 document.getElementById("count").textContent=NODES.length;
 document.getElementById("resetView").addEventListener("click",e=>{ e.stopPropagation(); resetView(); });
-window.addEventListener("keydown",e=>{ if(e.key==="Escape") resetView(); });
+
+const HELP_SEEN_KEY="eleken-blog-map-help-seen";
+const helpToggle=document.getElementById("helpToggle");
+const helpPanel=document.getElementById("helpPanel");
+const helpClose=document.getElementById("helpClose");
+const helpGotIt=document.getElementById("helpGotIt");
+function rememberHelpSeen(){
+  try{ localStorage.setItem(HELP_SEEN_KEY,"1"); }catch(e){}
+}
+function shouldAutoShowHelp(){
+  try{ return localStorage.getItem(HELP_SEEN_KEY)!=="1"; }catch(e){ return true; }
+}
+function isHelpOpen(){ return helpPanel && !helpPanel.hidden; }
+function setHelpOpen(open,{remember=false,focusClose=false}={}){
+  if(!helpPanel||!helpToggle) return;
+  helpPanel.hidden=!open;
+  helpToggle.classList.toggle("active",open);
+  helpToggle.setAttribute("aria-expanded",open?"true":"false");
+  if(remember) rememberHelpSeen();
+  if(open&&focusClose) helpClose?.focus();
+}
+helpToggle?.addEventListener("click",e=>{
+  e.stopPropagation();
+  setHelpOpen(!isHelpOpen(),{remember:true,focusClose:!isHelpOpen()});
+});
+helpPanel?.addEventListener("click",e=>e.stopPropagation());
+helpClose?.addEventListener("click",()=>setHelpOpen(false,{remember:true}));
+helpGotIt?.addEventListener("click",()=>setHelpOpen(false,{remember:true}));
+document.addEventListener("click",()=>{ if(isHelpOpen()) setHelpOpen(false,{remember:true}); });
+if(shouldAutoShowHelp()) setTimeout(()=>setHelpOpen(true),1200);
+window.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if(isHelpOpen()){
+    setHelpOpen(false,{remember:true});
+    return;
+  }
+  resetView();
+});
 
 svg.on("click.reset",e=>{
   if(e.target!==svg.node()||e.defaultPrevented) return;
