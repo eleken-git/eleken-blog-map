@@ -12,12 +12,13 @@
 | `nodes.js` | Лише `const NODES = [...]` — дані статей. | **генерується білдом** |
 | `index.html` | Розмітка. Підключає `nodes.js`, потім `eleken-blog-map.js`. | вручну |
 | `eleken-blog-map.css` | Стилі. | вручну |
-| `scripts/build.mjs` | Fetch Webflow → генерує `nodes.js`. | вручну |
-| `scripts/serve.mjs` | Локальний статичний сервер для перегляду. | вручну |
+| `scripts/build.mjs` | Fetch Webflow → збирає `public/` (свіжий `nodes.js` + копії статики). | вручну |
+| `scripts/serve.mjs` | Локальний статичний сервер. Без аргументу віддає корінь, `node scripts/serve.mjs public` — теку `public`. | вручну |
+| `public/` | Вихід білду, який віддає Vercel. Не комітиться (gitignored). | генерується |
 
 Дані й код у різних файлах — щоб оновлення даних ніколи не зачіпало логіку, а
-білд перезаписував **тільки** `nodes.js`. `nodes.js` закомічено як снапшот, тож
-карта працює локально без токена; Vercel перезаписує його свіжими даними.
+білд перезаписував **тільки** дані. `nodes.js` у корені закомічено як снапшот,
+тож карта працює локально без токена; на Vercel білд збирає свіжу `public/`.
 
 ## Локально
 
@@ -33,8 +34,10 @@ WEBFLOW_TOKEN=xxx node scripts/build.mjs
 
 ## Деплой (Vercel)
 
-- `buildCommand`: `node scripts/build.mjs` (див. `vercel.json`)
-- Env var `WEBFLOW_TOKEN` додати в Settings → Environment Variables
+- `buildCommand`: `node scripts/build.mjs`, `outputDirectory`: `public` (див.
+  `vercel.json`). Обидва задані явно у `vercel.json`, тож деплой не залежить від
+  налаштувань у дашборді.
+- Env var `WEBFLOW_TOKEN` додати в Settings → Environment Variables.
 - Білд падає з кодом 1, якщо токена нема або API віддав помилку — порожня карта
   не задеплоїться.
 

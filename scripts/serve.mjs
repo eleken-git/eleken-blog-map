@@ -3,7 +3,8 @@ import { readFile } from 'fs/promises';
 import { join, extname, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.argv[2] ? join(REPO, process.argv[2]) : REPO;
 const PORT = 8765;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript',

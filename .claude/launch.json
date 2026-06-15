@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/serve.mjs"],
       "port": 8765
+    },
+    {
+      "name": "static-public",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve.mjs", "public"],
+      "port": 8765
     }
   ]
 }

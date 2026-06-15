@@ -1,9 +1,10 @@
-import { writeFileSync } from 'fs';
+import { writeFileSync, copyFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+const OUT = join(ROOT, 'public');
 
 const COLL_ID = '6368f41dd433865719aa82cd';
 const TOKEN = process.env.WEBFLOW_TOKEN;
@@ -76,10 +77,18 @@ async function build() {
 
   console.log(`Built ${nodes.length} nodes.`);
 
-  // Data only — the map logic lives in eleken-blog-map.js and reads this global.
-  writeFileSync(join(ROOT, 'nodes.js'), `const NODES = ${JSON.stringify(nodes)};\n`);
+  // Assemble the deploy output in public/ — the only directory Vercel serves.
+  mkdirSync(OUT, { recursive: true });
 
-  console.log('Build complete → nodes.js');
+  // Data only — the map logic lives in eleken-blog-map.js and reads this global.
+  writeFileSync(join(OUT, 'nodes.js'), `const NODES = ${JSON.stringify(nodes)};\n`);
+
+  // Static assets copied as-is (sources stay in repo root for local dev).
+  for (const file of ['index.html', 'eleken-blog-map.css', 'eleken-blog-map.js']) {
+    copyFileSync(join(ROOT, file), join(OUT, file));
+  }
+
+  console.log('Build complete → public/');
 }
 
 build();
