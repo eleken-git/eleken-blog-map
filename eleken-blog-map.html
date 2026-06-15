@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eleken Blog — Graph</title>
+<link rel="stylesheet" href="eleken-blog-map.css">
+</head>
+<body>
+<div id="wrap">
+<svg id="graph"></svg>
+
+<aside id="sidebar">
+  <div class="sb-head">
+    <h1>Eleken Blog — карта</h1>
+    <p><span id="count"></span> статей · по <b>Original Publish Date</b></p>
+    <input id="search" placeholder="Пошук за slug або назвою…" autocomplete="off">
+  </div>
+  <div id="tree"></div>
+</aside>
+
+<div id="hint" class="hud">
+  <span><b>Зум</b> колесом · <b>Тягни</b> фон / точку · <b>Наведи</b> — назва + дата · <b>Клік</b> — фокус</span>
+  <button id="resetView" type="button" title="Повернути карту до початку" aria-label="Повернути карту до початку">↺</button>
+</div>
+</div><!-- /#wrap -->
+<div id="tip"><div class="t"></div><span class="d"></span><div class="s"></div></div>
+
+<script src="eleken-blog-map.js"></script>
+</body>
+</html>
