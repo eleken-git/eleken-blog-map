@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -76,11 +76,10 @@ async function build() {
 
   console.log(`Built ${nodes.length} nodes.`);
 
-  const template = readFileSync(join(ROOT, 'src', 'eleken-blog-map.js'), 'utf8');
-  const output = template.replace('/*NODES_PLACEHOLDER*/[]', JSON.stringify(nodes));
-  writeFileSync(join(ROOT, 'eleken-blog-map.js'), output);
+  // Data only — the map logic lives in eleken-blog-map.js and reads this global.
+  writeFileSync(join(ROOT, 'nodes.js'), `const NODES = ${JSON.stringify(nodes)};\n`);
 
-  console.log('Build complete → eleken-blog-map.js');
+  console.log('Build complete → nodes.js');
 }
 
 build();
