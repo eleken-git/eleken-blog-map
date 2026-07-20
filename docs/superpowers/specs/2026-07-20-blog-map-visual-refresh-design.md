@@ -58,6 +58,14 @@ Problems this refresh fixes:
 
 Dots must not sit on top of the year glyphs ("2026", "Без дати") — they ring the text instead. Implementation: a custom `label-hole` force in the simulation. Each year label's ink box is measured once via `getBBox()` (half-extents `gw = width/2`, `gh = height*0.36` ≈ cap height); a rounded-rect exclusion zone (`px = gw+75`, `py = gh+50` — widened on user request so dots keep a clear ≥35-unit margin from the glyphs; Chebyshev metric `m = max(|dx|/px, |dy|/py)`) pushes dots outward with `(1-m)*alpha*1.2` around the cluster's live centroid — the same centroid the label tracks, so the hole and the glyph stay concentric. An elliptical zone was tried first; rectangle corners of wide glyphs poked through it (29 dots on ink → 1, and that one sits on the bbox side-bearing, not on ink). Determinism, pre-settle budget (~490 ms), and all prior behaviors are unaffected.
 
+## Addendum (2026-07-20, user request): scope hover motion to the hovered year only
+
+Complaint: hovering a dot reflowed **every** cluster, not just the hovered year's. Cause — the hover's `sim.restart()` re-energised all 517 nodes (base charge + x/y-to-hub + collide + label-hole), and the hovered dot's `forceManyBody` repulse (strength −280) acts globally. Fix — freeze every other year in place for the hover's lifetime:
+
+- **mouseenter:** pin every node whose `year !== hovered.year` at its current position (`fx/fy`); explicitly unpin the hovered year's own cluster (so re-hovering a previously frozen year frees it) except the anchor dot and any focused node; cancel a pending release; then restart with the scoped repulse. Only the hovered cluster moves.
+- **mouseleave:** remove the repulse, restart at α 0.2 so the hovered cluster eases back **while the other years stay frozen**, and register a one-shot `end.hoverRelease` handler that unpins everything (except a focused node) once the sim cools — so releasing the freeze never causes visible drift.
+- **Safety:** `clearFocusedPost` (background click / reset / year-select) cancels any pending release and unpins all nodes; every `mouseenter` cancels the prior pending release before re-scoping. Verified: hovered year moves ~70 units, all other years 0 on enter and 0 through the leave-settle; no node left pinned after release; a focused node stays pinned throughout.
+
 ## Error handling
 
 The app has no network or async failure surface at runtime (static data, no fetches). The only new failure mode is the synchronous pre-settle loop taking too long on slow hardware; guard: cap the loop by tick count (300) *and* elapsed time (`performance.now()` budget 700 ms) — if a cap is hit before alpha ≤ 0.01, the simulation timer restarts and remaining settling happens live as today (framing on such machines is then approximate until reset).

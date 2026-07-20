@@ -518,6 +518,10 @@ git commit -m "feat: pulse on every focus with tuned zoom easing; drop duplicate
 
 ---
 
+### Task 7 (post-merge addendum): scope hover motion to the hovered year
+
+> **Added 2026-07-20 on user request** ("карта має рухатися ... [не] на всіх роках, а на конкретному році на який наводить юзер"). See spec Addendum. Edits: `node.mouseenter` freezes other years / frees the hovered cluster + cancels pending release; `node.mouseleave` eases the hovered cluster back with other years still frozen and schedules a one-shot `sim.on("end.hoverRelease")` unpin; `clearFocusedPost` unpins all as a safety net; `resetEmph` reverted to unpin only the hovered node. Verified via manual `sim.tick()` displacement checks: hovered year moves, other years 0; focused node stays pinned; 0 nodes stuck after release.
+
 ### Task 6 (post-merge addendum): year-glyph exclusion force
 
 > **Added 2026-07-20 on user request** ("цятки не наїзжали на цифри чи букви, а були навколо них"). See spec Addendum. One code region: `holeSize`/`holePosts` measurement + `forceLabelHole()` after the `yrText` lookup, registered as `.force("label-hole", forceLabelHole())` in the simulation chain. Verified: 0 dots on glyph ink (1 boundary case on the "Без дати" bbox side-bearing), identical hash across reloads, pre-settle ~490 ms, console clean.

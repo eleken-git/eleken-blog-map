@@ -351,12 +351,21 @@ function clearFocusedPost(){
   hovered=null;
   setRowHover(null);
   sim.force("hover-repulse",null).alphaTarget(0);
+  sim.on("end.hoverRelease",null);
+  posts.forEach(n=>{ n.fx=null; n.fy=null; });   // release any leftover hover-freeze
   tip.style.opacity=0;
   hoverLabel.style("opacity",0);
 }
 
 node.on("mouseenter",(e,d)=>{
   emphasize(d);
+  sim.on("end.hoverRelease",null);            // cancel a pending release from a prior leave
+  // freeze every other year in place; free the hovered year so only its cluster reflows
+  posts.forEach(n=>{
+    if(n===d||n===focused) return;
+    if(n.year===d.year){ n.fx=null; n.fy=null; }
+    else { n.fx=n.x; n.fy=n.y; }
+  });
   sim.force("hover-repulse",d3.forceManyBody().strength(n=>n===d?-280:0))
      .alpha(0.3).alphaTarget(0).restart();
   const c=COLORS[d.year]||"#7f8fff";
@@ -366,7 +375,13 @@ node.on("mouseenter",(e,d)=>{
     .on("mousemove",e=>{ let x=e.clientX+16,y=e.clientY+16;
         if(x+300>window.innerWidth)x=e.clientX-300; if(y+120>window.innerHeight)y=e.clientY-120;
         tip.style.left=x+"px"; tip.style.top=y+"px"; })
-    .on("mouseleave",(e,d)=>{ sim.force("hover-repulse",null).alpha(0.2).alphaTarget(0).restart(); resetEmph(d); })
+    .on("mouseleave",(e,d)=>{
+      sim.force("hover-repulse",null);
+      resetEmph(d);
+      // ease the hovered cluster back while other years stay frozen; release the freeze once cool
+      sim.alpha(0.2).alphaTarget(0).restart();
+      sim.on("end.hoverRelease",()=>{ posts.forEach(n=>{ if(n!==focused){ n.fx=null; n.fy=null; } }); sim.on("end.hoverRelease",null); });
+    })
     .on("click",(e,d)=>{ e.stopPropagation(); focusPost(d); });
 
 function focusNode(d){ const k=10,cx=SB+(W-SB)/2,cy=H/2;
