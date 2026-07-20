@@ -23,6 +23,8 @@
 
 ### Task 1: Deterministic, pre-settled, instantly-framed opening
 
+> **Executed with deviations (2026-07-20):** (1) pre-settle runs to alpha ≤ 0.01 (caps: 300 ticks / 700 ms) instead of 150 ticks / 250 ms — the layout overshoots then contracts, and 150 ticks froze it mid-overshoot with a wrong frame; when the threshold is reached the sim timer is not restarted (static, fully deterministic map). (2) `fitTransform` measures `nodeG` (dots only), not `root` — year glyphs inflated the box asymmetrically. (3) Added hidden-tab branch + `autoFrame` resize re-framing: `schedule`/state `let` moved above `ticked()` (TDZ), zoom handler sets `autoFrame=false` on user gestures, `focusNode`/`focusYear` clear it, `resetView` re-arms it, ResizeObserver re-fits while auto-framed and ignores zero sizes. The code blocks below were updated to the as-built versions.
+
 **Files:**
 - Modify: `eleken-blog-map.js` (rng helper ~line 53, `posts` jitter ~line 87, simulation block ~lines 131–149, `fitAll` ~line 281, startup line 499)
 
@@ -91,18 +93,23 @@ const sim = d3.forceSimulation(posts)
   .force("y", d3.forceY(d=>hubPos[d.year].y).strength(.12))
   .on("tick", ticked);
 
-// pre-settle synchronously so the first painted frame is already calm
+// pre-settle synchronously past the expansion overshoot so the first painted
+// frame is the near-equilibrium layout; no timer restart unless the budget hits
 sim.stop();
 {
   const t0 = performance.now();
-  for (let i = 0; i < 150 && performance.now() - t0 < 250; i++) sim.tick();
+  let i = 0;
+  for (; i < 300 && sim.alpha() > 0.01 && performance.now() - t0 < 700; i++) sim.tick();
   window.__presettleMs = Math.round(performance.now() - t0);
+  window.__presettleTicks = i;
+  if (sim.alpha() > 0.01) sim.restart();
 }
 ticked();
-sim.restart();
 ```
 
-Note: `sim.tick()` does not dispatch tick events — that is why `ticked()` is called once after the loop. `sim.restart()` resumes the internal timer from the already-decayed alpha (≈0.03 after 150 ticks), so residual motion is negligible. d3-force's internal jiggle RNG is deterministically seeded, so the settled layout is reproducible.
+Also: the `let ready=false, hovered=null, focused=null, activeItemEl=null, rafQ=false, autoFrame=true;` line and `function schedule(){…}` must sit ABOVE `function ticked()` — the synchronous `ticked()` call reads `rafQ` via `schedule()`, and in their original position (after the sim block) that hits the `let` temporal dead zone and kills the script.
+
+Note: `sim.tick()` does not dispatch tick events — that is why `ticked()` is called once after the loop. Reaching alpha ≤ 0.01 means equilibrium: the timer stays stopped (static, deterministic map; hover/drag `restart()` it on demand). d3-force's internal jiggle RNG is deterministically seeded, so the settled layout is reproducible.
 
 - [ ] **Step 5: Extract `fitTransform` and reuse it in `fitAll`**
 
@@ -110,7 +117,8 @@ Replace `fitAll` (lines 281–288) with:
 
 ```js
 function fitTransform(scale=1){
-  const b=root.node().getBBox(), availW=Math.max(240,W-SB);
+  // frame the dots; the giant year glyphs are decoration and may bleed past the frame
+  const b=nodeG.node().getBBox(), availW=Math.max(240,W-SB);
   if(!b.width||!b.height) return null;
   const k=Math.min(availW/b.width,H/b.height)*0.82*scale;
   return d3.zoomIdentity.translate(SB+availW/2-k*(b.x+b.width/2), H/2-k*(b.y+b.height/2)).scale(k);
@@ -129,16 +137,40 @@ Replace line 499 (`setTimeout(()=>fitAll(650,()=>{ ready=true; place(); }),700);
 
 ```js
 // ---- opening: first paint is the framed, settled overview ----
-svg.style("opacity",0);
-const _t94=fitTransform(0.94);
-if(_t94) svg.call(zoom.transform,_t94);
-ready=true; place();
-svg.transition().duration(250).style("opacity",1);
-const _tFit=fitTransform();
-if(_tFit) svg.transition("arrive").duration(600).ease(d3.easeCubicInOut).call(zoom.transform,_tFit);
+if(document.hidden){
+  // background-tab load: no animations (rAF is stalled); the ResizeObserver
+  // re-frames with real dimensions once the tab becomes visible
+  const _tFit=fitTransform();
+  if(_tFit) svg.call(zoom.transform,_tFit);
+  ready=true; place();
+}else{
+  svg.style("opacity",0);
+  const _t94=fitTransform(0.94);
+  if(_t94) svg.call(zoom.transform,_t94);
+  ready=true; place();
+  svg.transition().duration(250).style("opacity",1);
+  const _tFit=fitTransform();
+  if(_tFit) svg.transition("arrive").duration(600).ease(d3.easeCubicInOut).call(zoom.transform,_tFit);
+}
 ```
 
 (The whole script executes before the browser's first paint, so frame 1 is already the 94%-framed overview fading in; the named `"arrive"` transition eases to the exact fit without fighting the opacity transition.)
+
+Auto-framing support (three small edits): the zoom handler gains `if(e.sourceEvent) autoFrame=false;` as its first line; `focusNode` and `focusYear` set `autoFrame=false;`; `resetView` sets `autoFrame=true;` before its `fitAll(...)`. The ResizeObserver callback becomes:
+
+```js
+new ResizeObserver(()=>{
+  const nW=_wrap.clientWidth, nH=_wrap.clientHeight;
+  if(!nW||!nH) return;
+  if(Math.abs(nW-W)>10||Math.abs(nH-H)>10){
+    W=nW;
+    H=nH;
+    svg.attr("viewBox",[0,0,nW,nH]);
+    if(autoFrame){ svg.interrupt("arrive"); const t=fitTransform(); if(t) svg.call(zoom.transform,t); }
+    schedule();
+  }
+}).observe(_wrap);
+```
 
 - [ ] **Step 7: GREEN — verify determinism, framing, budget**
 
@@ -151,10 +183,10 @@ posts.slice(0, 20).map(p => Math.round(p.x) + "," + Math.round(p.y)).join(";")
 Expected: IDENTICAL strings across reloads. Then:
 
 ```js
-window.__presettleMs
+[window.__presettleMs, window.__presettleTicks, +sim.alpha().toFixed(3)]
 ```
 
-Expected: a number < 250. Screenshot immediately after reload: all 8 clusters visible and framed (no cut-offs, no zoom jump afterward). Console: no errors.
+Expected: `[<number < 700>, <≈200>, 0.01]`. Screenshot immediately after reload: all 8 clusters visible and framed (no cut-offs, no zoom jump afterward). Console: no errors.
 
 - [ ] **Step 8: Commit**
 

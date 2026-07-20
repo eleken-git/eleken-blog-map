@@ -51,8 +51,9 @@ let W = Math.max(_wrap.clientWidth||0, window.innerWidth||800);
 let H = Math.max(_wrap.clientHeight||0, window.innerHeight||600);
 const hubPos = {};
 // Organic random cluster positions — seeded PRNG for consistency
+const makeRng = s => { let x = s >>> 0; return () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x / 4294967296; }; };
 (function(){
-  const rng=(s=>{let x=s>>>0;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};})(20241015);
+  const rng=makeRng(20241015);
   const px0=SB+100, px1=W*2.0-100;
   const py0=100, py1=H*2.0-100;
   const gw=px1-px0, gh=py1-py0;
@@ -72,20 +73,23 @@ const hubPos = {};
     pl.push({x:bx,y:by});
   });
 })();
-// re-measure on resize for Obsidian panels
+// re-measure on resize for Obsidian panels; while still auto-framed, re-frame too
 new ResizeObserver(()=>{
   const nW=_wrap.clientWidth, nH=_wrap.clientHeight;
+  if(!nW||!nH) return;
   if(Math.abs(nW-W)>10||Math.abs(nH-H)>10){
     W=nW;
     H=nH;
     svg.attr("viewBox",[0,0,nW,nH]);
+    if(autoFrame){ svg.interrupt("arrive"); const t=fitTransform(); if(t) svg.call(zoom.transform,t); }
     schedule();
   }
 }).observe(_wrap);
 
 function trunc(s){ return s.length>44 ? s.slice(0,43)+"…" : s; }
+const jitterRng = makeRng(20260720);
 const posts = NODES.map((n,i)=>({id:"p"+i, ...n, _lab:trunc(n.name),
-  x:hubPos[n.year].x+(Math.random()-.5)*180, y:hubPos[n.year].y+(Math.random()-.5)*180}));
+  x:hubPos[n.year].x+(jitterRng()-.5)*180, y:hubPos[n.year].y+(jitterRng()-.5)*180}));
 
 const active = new Set(years);
 let query="";
@@ -101,6 +105,7 @@ const root = svg.append("g");                 // zoomed world: year markers + do
 const overlay = svg.append("g");              // screen-space: labels (constant size, decluttered)
 
 const zoom = d3.zoom().scaleExtent([0.1,12]).on("zoom",e=>{
+  if(e.sourceEvent) autoFrame=false;
   root.attr("transform",e.transform);
   schedule();
 });
@@ -128,12 +133,9 @@ const hoverLabel = overlay.append("text").attr("id","hoverLabel");
 const MAX_VISIBLE_LABELS = 56;
 
 // ---- force layout: spread apart, gently cluster by year ----
-const sim = d3.forceSimulation(posts)
-  .force("charge", d3.forceManyBody().strength(-110))
-  .force("collide", d3.forceCollide().radius(18).iterations(3))
-  .force("x", d3.forceX(d=>hubPos[d.year].x).strength(.12))
-  .force("y", d3.forceY(d=>hubPos[d.year].y).strength(.12))
-  .on("tick",()=>{
+let ready=false, hovered=null, focused=null, activeItemEl=null, rafQ=false, autoFrame=true;
+function schedule(){ if(rafQ)return; rafQ=true; requestAnimationFrame(()=>{ rafQ=false; place(); }); }
+function ticked(){
   node.attr("cx",d=>d.x).attr("cy",d=>d.y);
   // track year label to actual centroid of its cluster dots
   years.forEach(y=>{
@@ -146,7 +148,26 @@ const sim = d3.forceSimulation(posts)
     yrText[y].setAttribute("y",cy);
   });
   schedule();
-});
+}
+const sim = d3.forceSimulation(posts)
+  .force("charge", d3.forceManyBody().strength(-110))
+  .force("collide", d3.forceCollide().radius(18).iterations(3))
+  .force("x", d3.forceX(d=>hubPos[d.year].x).strength(.12))
+  .force("y", d3.forceY(d=>hubPos[d.year].y).strength(.12))
+  .on("tick", ticked);
+
+// pre-settle synchronously past the expansion overshoot so the first painted
+// frame is the near-equilibrium layout; no timer restart unless the budget hits
+sim.stop();
+{
+  const t0 = performance.now();
+  let i = 0;
+  for (; i < 300 && sim.alpha() > 0.01 && performance.now() - t0 < 700; i++) sim.tick();
+  window.__presettleMs = Math.round(performance.now() - t0);
+  window.__presettleTicks = i;
+  if (sim.alpha() > 0.01) sim.restart();
+}
+ticked();
 
 // ---- drag ----
 node.call(d3.drag()
@@ -155,8 +176,6 @@ node.call(d3.drag()
   .on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
 // ---- label placement with collision avoidance (screen space) ----
-let ready=false, hovered=null, focused=null, activeItemEl=null, rafQ=false;
-function schedule(){ if(rafQ)return; rafQ=true; requestAnimationFrame(()=>{ rafQ=false; place(); }); }
 function labelWidth(d){ return d._labelWidth || (d._labelWidth=Math.min(300,Math.max(44,d._lab.length*6.1+10))); }
 function overlaps(a,b){ return a.x0<b.x1 && a.x1>b.x0 && a.y0<b.y1 && a.y1>b.y0; }
 function fitsLabel(box,placed){
@@ -276,19 +295,26 @@ node.on("mouseenter",(e,d)=>{
     .on("click",(e,d)=>{ e.stopPropagation(); focusPost(d); });
 
 function focusNode(d){ const k=10,cx=SB+(W-SB)/2,cy=H/2;
+  autoFrame=false;
   svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(cx-k*d.x,cy-k*d.y).scale(k))
      .on("end",()=>{ if(focused===d) applyFocusedNode(); }); }
+function fitTransform(scale=1){
+  // frame the dots; the giant year glyphs are decoration and may bleed past the frame
+  const b=nodeG.node().getBBox(), availW=Math.max(240,W-SB);
+  if(!b.width||!b.height) return null;
+  const k=Math.min(availW/b.width,H/b.height)*0.82*scale;
+  return d3.zoomIdentity.translate(SB+availW/2-k*(b.x+b.width/2), H/2-k*(b.y+b.height/2)).scale(k);
+}
 function fitAll(duration=700,onEnd){
-  const b=root.node().getBBox(), availW=Math.max(240,W-SB);
-  if(!b.width||!b.height) return;
-  const k=Math.min(availW/b.width,H/b.height)*0.82;
-  const tx=SB+availW/2-k*(b.x+b.width/2), ty=H/2-k*(b.y+b.height/2);
-  const tr=svg.transition().duration(duration).call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(k));
+  const t=fitTransform();
+  if(!t) return;
+  const tr=svg.transition().duration(duration).ease(d3.easeCubicInOut).call(zoom.transform,t);
   if(onEnd) tr.on("end",onEnd);
 }
 function focusYear(y){
   const cs=posts.filter(p=>p.year===y);
   if(!cs.length) return;
+  autoFrame=false;
   const minX=Math.min(...cs.map(p=>p.x)), maxX=Math.max(...cs.map(p=>p.x));
   const minY=Math.min(...cs.map(p=>p.y)), maxY=Math.max(...cs.map(p=>p.y));
   const cx=(minX+maxX)/2, cy=(minY+maxY)/2, availW=Math.max(240,W-SB);
@@ -337,6 +363,7 @@ function resetView(duration=700){
   yearsDesc.forEach(y=>setOpen(y,false));
   updateFolderStates();
   applyFilter();
+  autoFrame=true;
   fitAll(duration,()=>{ ready=true; place(); });
 }
 
@@ -495,5 +522,19 @@ svg.on("dblclick.reset",e=>{
   resetView();
 });
 
-// ---- fit to visible area, then enable labels ----
-setTimeout(()=>fitAll(650,()=>{ ready=true; place(); }),700);
+// ---- opening: first paint is the framed, settled overview ----
+if(document.hidden){
+  // background-tab load: no animations (rAF is stalled); the ResizeObserver
+  // re-frames with real dimensions once the tab becomes visible
+  const _tFit=fitTransform();
+  if(_tFit) svg.call(zoom.transform,_tFit);
+  ready=true; place();
+}else{
+  svg.style("opacity",0);
+  const _t94=fitTransform(0.94);
+  if(_t94) svg.call(zoom.transform,_t94);
+  ready=true; place();
+  svg.transition().duration(250).style("opacity",1);
+  const _tFit=fitTransform();
+  if(_tFit) svg.transition("arrive").duration(600).ease(d3.easeCubicInOut).call(zoom.transform,_tFit);
+}

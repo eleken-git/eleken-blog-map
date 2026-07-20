@@ -27,10 +27,10 @@ Problems this refresh fixes:
 ### 1. Opening sequence
 
 - **Deterministic layout:** replace `Math.random()` jitter in the `posts` construction with the existing seeded LCG pattern (same generator as `hubPos`, different fixed seed). Same map every visit.
-- **Pre-settled first paint:** after constructing the simulation, run `sim.tick()` synchronously in a loop (~150 ticks, tuned so total cost stays under ~250 ms for 517 nodes), then let the normal low-alpha simulation continue. Dots are born in their final arrangement.
-- **Instant framing:** compute the fit-all transform at startup and apply it with zero duration before first paint — at 94% of the fitted scale, which still frames all clusters (fit already includes a 0.82 margin factor). Remove the 700 ms delay + jump. `ready=true` (label placement enabled) from the first frame.
+- **Pre-settled first paint:** after constructing the simulation, run `sim.tick()` synchronously until alpha ≤ 0.01 (≈200 ticks, ~400 ms for 517 nodes; hard caps: 300 ticks / 700 ms). The force layout overshoots and contracts before equilibrium, so a fixed small tick count freezes it mid-overshoot with a wrong frame — the alpha threshold is the correct stop condition. When the threshold is reached the simulation timer is NOT restarted: the map is static from frame one (fully deterministic), and hover/drag interactions restart it on demand as they already do.
+- **Instant framing:** compute the fit transform from the **dots'** bounding box (`nodeG`, not `root` — the giant year glyphs are decoration and may bleed past the frame) and apply it with zero duration before first paint, at 94% of the fitted scale (fit already includes a 0.82 margin factor). Remove the 700 ms delay + jump. `ready=true` (label placement enabled) from the first frame.
 - **Arrival ease (subtle, once):** dots/labels fade in ~250 ms while the zoom eases from that 94% to the exact fit over ~600 ms (cubic in-out). No other load animation.
-- Resize refit (ResizeObserver) behavior unchanged.
+- **Background-tab and resize robustness:** if the page loads in a hidden tab (rAF stalled, zero layout), skip the animations and apply the exact fit directly. The ResizeObserver, while the view is still auto-framed (no user pan/zoom/focus yet; reset re-arms it), re-computes the fit on real dimension changes — covering both the hidden-tab reveal and ordinary window resizes.
 
 ### 2. Label system
 
@@ -56,7 +56,7 @@ Problems this refresh fixes:
 
 ## Error handling
 
-The app has no network or async failure surface at runtime (static data, no fetches). The only new failure mode is the synchronous pre-settle loop taking too long on slow hardware; guard: cap the loop by *both* tick count and elapsed time (`performance.now()` budget ~250 ms) — if the budget is hit, remaining settling happens live as today.
+The app has no network or async failure surface at runtime (static data, no fetches). The only new failure mode is the synchronous pre-settle loop taking too long on slow hardware; guard: cap the loop by tick count (300) *and* elapsed time (`performance.now()` budget 700 ms) — if a cap is hit before alpha ≤ 0.01, the simulation timer restarts and remaining settling happens live as today (framing on such machines is then approximate until reset).
 
 ## Verification (manual, via browser preview)
 
