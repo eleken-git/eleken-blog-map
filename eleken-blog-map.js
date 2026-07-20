@@ -9,6 +9,15 @@ const COLORS = {
 };
 const yearLabel = y => y===0 ? "Без дати" : String(y);
 const escapeHtml = s => s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// approximate perceived lightness — light badge backgrounds get dark text
+const darkText=c=>{const n=parseInt(c.slice(1),16);return (0.2126*(n>>16)+0.7152*(n>>8&255)+0.0722*(n&255))/255>0.6;};
+let hoveredItemEl=null;
+function setRowHover(el){
+  if(hoveredItemEl===el) return;
+  hoveredItemEl?.classList.remove("hovered");
+  hoveredItemEl=el||null;
+  hoveredItemEl?.classList.add("hovered");
+}
 async function copyText(text){
   try{
     if(navigator.clipboard && window.isSecureContext){
@@ -103,6 +112,16 @@ function matches(d){
 const svg = d3.select("#graph").attr("viewBox",[0,0,W,H]);
 const root = svg.append("g");                 // zoomed world: year markers + dots
 const overlay = svg.append("g");              // screen-space: labels (constant size, decluttered)
+
+// per-year soft glow for the hovered/focused dot
+const defs=svg.append("defs");
+Object.entries(COLORS).forEach(([y,c])=>{
+  defs.append("filter").attr("id","glow-"+y)
+      .attr("x","-150%").attr("y","-150%").attr("width","400%").attr("height","400%")
+    .append("feDropShadow")
+      .attr("dx",0).attr("dy",0).attr("stdDeviation",6)
+      .attr("flood-color",c).attr("flood-opacity",0.85);
+});
 
 const zoom = d3.zoom().scaleExtent([0.1,12]).on("zoom",e=>{
   if(e.sourceEvent) autoFrame=false;
@@ -260,14 +279,17 @@ function place(){
 const tip=document.getElementById("tip"), tipT=tip.querySelector(".t"), tipD=tip.querySelector(".d"), tipS=tip.querySelector(".s");
 function emphasize(d){
   hovered=d;
+  setRowHover(d._itemEl);
   d.fx=d.x; d.fy=d.y;  // pin so it doesn't drift while neighbours spread
   node.attr("r",n=>n===d?9:(n===focused?10:5))
-      .attr("fill",n=> n===d ? "var(--accent)" : (n===focused ? "var(--accent)" : (n.year===d.year ? (COLORS[n.year]||"var(--dot)") : "var(--dot-fade)")));
+      .attr("fill",n=> n===d ? "var(--accent)" : (n===focused ? "var(--accent)" : (n.year===d.year ? (COLORS[n.year]||"var(--dot)") : "var(--dot-fade)")))
+      .attr("filter",n=>n===d||n===focused?`url(#glow-${n.year})`:null);
   hoverLabel.text(d.name).style("opacity",1); place();
 }
 function resetEmph(d){
   if(d&&d!==focused){d.fx=null;d.fy=null;}
   hovered=null;
+  setRowHover(null);
   tip.style.opacity=0;
   applyFilter();
   if(focused){
@@ -283,7 +305,8 @@ function applyFocusedNode(){
   node.attr("r",n=>n===focused?10:5)
       .attr("fill",n=> n===focused ? "var(--accent)" : (matches(n)?(COLORS[n.year]||"var(--dot)"):"var(--dot-fade)"))
       .attr("opacity",n=> n===focused ? 1 : (matches(n) ? .18 : .04))
-      .attr("pointer-events",n=>matches(n)?"all":"none");
+      .attr("pointer-events",n=>matches(n)?"all":"none")
+      .attr("filter",n=>n===focused?`url(#glow-${n.year})`:null);
   hoverLabel.text(focused.name).style("opacity",1);
   place();
 }
@@ -299,6 +322,7 @@ function clearFocusedPost(){
   focused=null;
   updateFocusedItem(false);
   hovered=null;
+  setRowHover(null);
   sim.force("hover-repulse",null).alphaTarget(0);
   tip.style.opacity=0;
   hoverLabel.style("opacity",0);
@@ -308,6 +332,8 @@ node.on("mouseenter",(e,d)=>{
   emphasize(d);
   sim.force("hover-repulse",d3.forceManyBody().strength(n=>n===d?-280:0))
      .alpha(0.3).alphaTarget(0).restart();
+  const c=COLORS[d.year]||"#7f8fff";
+  tipD.style.background=c; tipD.style.color=darkText(c)?"#1c1c1c":"#fff";
   tipT.textContent=d.name; tipD.textContent=d.date; tipS.textContent=d.slug; tip.style.opacity=1;
 })
     .on("mousemove",e=>{ let x=e.clientX+16,y=e.clientY+16;
@@ -477,7 +503,8 @@ function applyFilter(){
   if(hovered) return;
   const yh={}; years.forEach(y=>yh[y]=0); posts.forEach(p=>{ if(matches(p))yh[p.year]++; });
   node.attr("r",5).attr("fill",d=>matches(d)?(COLORS[d.year]||"var(--dot)"):"var(--dot-fade)")
-      .attr("opacity",d=>matches(d)?1:.08).attr("pointer-events",d=>matches(d)?"all":"none");
+      .attr("opacity",d=>matches(d)?1:.08).attr("pointer-events",d=>matches(d)?"all":"none")
+      .attr("filter",null);
   years.forEach(y=>{ const v=active.has(y)&&yh[y]>0;
     yrText[y].style.opacity = v?0.7:(query?0.05:(active.has(y)?0.45:.06)); });
   yearsDesc.forEach(y=>{ const st=folderEls[y];
