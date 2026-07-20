@@ -344,8 +344,9 @@ node.on("mouseenter",(e,d)=>{
 
 function focusNode(d){ const k=10,cx=SB+(W-SB)/2,cy=H/2;
   autoFrame=false;
-  svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(cx-k*d.x,cy-k*d.y).scale(k))
-     .on("end",()=>{ if(focused===d) applyFocusedNode(); }); }
+  svg.transition().duration(850).ease(d3.easeCubicInOut)
+     .call(zoom.transform, d3.zoomIdentity.translate(cx-k*d.x,cy-k*d.y).scale(k))
+     .on("end",()=>{ if(focused===d){ applyFocusedNode(); pulse(d); } }); }
 function fitTransform(scale=1){
   // frame the dots; the giant year glyphs are decoration and may bleed past the frame
   const b=nodeG.node().getBBox(), availW=Math.max(240,W-SB);
@@ -373,9 +374,13 @@ function focusYear(y){
   svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(k));
 }
 function pulse(d){ const t=d3.zoomTransform(svg.node()), p=t.apply([d.x,d.y]);
-  overlay.append("circle").attr("cx",p[0]).attr("cy",p[1]).attr("r",6)
-    .attr("fill","none").attr("stroke","var(--accent)").attr("stroke-width",2)
-    .transition().duration(800).attr("r",30).attr("stroke-opacity",0).remove(); }
+  [0,180].forEach(delay=>{
+    overlay.append("circle").attr("cx",p[0]).attr("cy",p[1]).attr("r",7)
+      .attr("fill","none").attr("stroke","var(--accent)").attr("stroke-width",2.5).attr("stroke-opacity",.9)
+      .transition().delay(delay).duration(700).ease(d3.easeCubicOut)
+      .attr("r",44).attr("stroke-opacity",0).attr("stroke-width",.5).remove();
+  });
+}
 
 // ---- left sidebar: folders by year ----
 const tree=document.getElementById("tree");
@@ -446,7 +451,6 @@ yearsDesc.forEach(y=>{
     p._itemEl=it;
     function pickPost(){
       focusPost(p,{scrollMenu:false});
-      setTimeout(()=>pulse(p),720);
     }
     it.addEventListener("mouseenter",()=>emphasize(p));
     it.addEventListener("mouseleave",resetEmph);
