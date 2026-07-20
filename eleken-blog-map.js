@@ -146,7 +146,7 @@ const holeSize={}, holePosts={};
 years.forEach(y=>{
   const b=yrText[y].getBBox();
   const gw=b.width/2, gh=b.height*0.36;  // glyph ink half-extents (cap-height approx)
-  holeSize[y]={px:gw+20, py:gh+14, gw, gh};
+  holeSize[y]={px:gw+75, py:gh+50, gw, gh};
   holePosts[y]=posts.filter(p=>p.year===y);
 });
 function forceLabelHole(){
