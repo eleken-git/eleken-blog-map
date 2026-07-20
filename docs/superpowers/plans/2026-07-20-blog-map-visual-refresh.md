@@ -203,9 +203,11 @@ git commit -m "feat: deterministic seeded layout with pre-settled, instantly fra
 - Modify: `eleken-blog-map.js` (`label` creation ~lines 124–128, `place()` selection ~lines 195–216)
 - Modify: `eleken-blog-map.css` (`.lbl` rule ~line 84)
 
+> **Executed with a deviation (2026-07-20):** the budget anchors are ratios of the fitted-overview scale (`k/kFit`), not absolute k — absolute anchors gave 2 labels at overview in a narrow viewport where the fit lands at k≈0.18. `kFit` is a `let` cached by `fitTransform(scale)` whenever `scale===1`. Anchors: `[[0.25,0],[1,12],[2.1,30],[4.2,56]]`. The code below is as-built.
+
 **Interfaces:**
 - Consumes: `matches(d)`, `labelWidth(d)`, `pickLabelSpot(p,w,placed)`, `labelBox`, `hoverBox` — all unchanged.
-- Produces: `labelBudget(k) -> integer` (module-level, pure). Labels toggle CSS class `on` instead of `display`.
+- Produces: `labelBudget(k) -> integer` (module-level; reads the `kFit` cache). Labels toggle CSS class `on` instead of `display`.
 
 - [ ] **Step 1: RED**
 
@@ -228,15 +230,19 @@ At ~line 128, replace `const MAX_VISIBLE_LABELS = 56;` with:
 ```js
 const MAX_VISIBLE_LABELS = 56;
 function labelBudget(k){
-  const pts=[[0.12,0],[0.48,12],[1,30],[2,MAX_VISIBLE_LABELS]];
-  if(k<pts[0][0]) return 0;
+  // anchored to the fitted overview scale so any viewport shows ~12 labels at overview
+  const r=k/kFit;
+  const pts=[[0.25,0],[1,12],[2.1,30],[4.2,MAX_VISIBLE_LABELS]];
+  if(r<pts[0][0]) return 0;
   for(let i=1;i<pts.length;i++){
     const [x0,y0]=pts[i-1],[x1,y1]=pts[i];
-    if(k<=x1) return Math.round(y0+(y1-y0)*(k-x0)/(x1-x0));
+    if(r<=x1) return Math.round(y0+(y1-y0)*(r-x0)/(x1-x0));
   }
   return MAX_VISIBLE_LABELS;
 }
 ```
+
+Supporting cache: add `kFit=0.4` to the state `let` line, and inside `fitTransform` after computing `k` add `if(scale===1) kFit=k;  // cache the overview scale for the label budget`.
 
 In `place()`, replace everything from `if(!ready){…}` (line 195) through the final `label…display` assignment (line 216) with:
 
@@ -301,7 +307,7 @@ In `eleken-blog-map.css`, replace the `.lbl` rule:
 Reload. Evaluate:
 
 ```js
-[labelBudget(0.1), labelBudget(0.48), labelBudget(1), labelBudget(2), labelBudget(5)]
+[labelBudget(kFit*0.2), labelBudget(kFit), labelBudget(kFit*2.1), labelBudget(kFit*4.2), labelBudget(kFit*9)]
 ```
 
 Expected: `[0, 12, 30, 56, 56]`. After the 600 ms arrival ease finishes:

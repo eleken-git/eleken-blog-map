@@ -34,7 +34,7 @@ Problems this refresh fixes:
 
 ### 2. Label system
 
-- **Zoom-scaled budget:** replace the hard `k<0.28 → none` gate with a budget function of zoom k: ~12 labels at the fitted overview (k≈0.48 on a 1280×720 viewport), growing monotonically to the existing cap of 56 by k≈2, and 0 only below k≈0.12. Exact curve tuned during verification.
+- **Zoom-scaled budget:** replace the hard `k<0.28 → none` gate with a budget function of the zoom-to-fit **ratio** `k/kFit` (kFit = the cached fitted-overview scale, refreshed by every full-fit computation): ~12 labels at the fitted overview in ANY viewport size, growing monotonically (30 at 2.1×, 56 at 4.2×), 0 only below 0.25×. Absolute-k anchors were tried first and broke in narrow viewports where the fit scale is much lower.
 - **Cluster round-robin selection:** rank candidates within each year by distance to viewport center (as today), then interleave years (1st of each year, then 2nd of each, …) so every visible cluster gets labels before any cluster gets its 4th. Ties inside a year break toward newer `iso` dates.
 - **Fades, not pops:** labels use `opacity` with a ~150 ms CSS transition; `display:none` remains only for filtered-out nodes. Positions update instantly during pan/zoom (no positional tweening — it smears).
 - **Type tuning:** `.lbl` font 12 → 12.5 px, halo `stroke-width` 4 → 4.5 px.

@@ -127,13 +127,23 @@ const node = nodeG.selectAll("circle").data(posts).join("circle")
   .attr("stroke","transparent").attr("stroke-width",18);
 
 const label = overlay.selectAll("text.lbl").data(posts).join("text")
-  .attr("class","lbl").attr("text-anchor","middle").text(d=>d._lab)
-  .style("display","none");
+  .attr("class","lbl").attr("text-anchor","middle").text(d=>d._lab);
 const hoverLabel = overlay.append("text").attr("id","hoverLabel");
 const MAX_VISIBLE_LABELS = 56;
+function labelBudget(k){
+  // anchored to the fitted overview scale so any viewport shows ~12 labels at overview
+  const r=k/kFit;
+  const pts=[[0.25,0],[1,12],[2.1,30],[4.2,MAX_VISIBLE_LABELS]];
+  if(r<pts[0][0]) return 0;
+  for(let i=1;i<pts.length;i++){
+    const [x0,y0]=pts[i-1],[x1,y1]=pts[i];
+    if(r<=x1) return Math.round(y0+(y1-y0)*(r-x0)/(x1-x0));
+  }
+  return MAX_VISIBLE_LABELS;
+}
 
 // ---- force layout: spread apart, gently cluster by year ----
-let ready=false, hovered=null, focused=null, activeItemEl=null, rafQ=false, autoFrame=true;
+let ready=false, hovered=null, focused=null, activeItemEl=null, rafQ=false, autoFrame=true, kFit=0.4;
 function schedule(){ if(rafQ)return; rafQ=true; requestAnimationFrame(()=>{ rafQ=false; place(); }); }
 function ticked(){
   node.attr("cx",d=>d.x).attr("cy",d=>d.y);
@@ -211,27 +221,39 @@ function place(){
     hoverLabel.text(text).attr("x",x).attr("y",y);
     hoverBox=labelBox(x,y,w);
   }
-  if(!ready){ label.style("display","none"); return; }
-  if(k<0.28){ label.style("display","none"); return; }
+  if(!ready){ label.classed("on",false); return; }
+  const budget=labelBudget(k);
+  if(!budget){ label.classed("on",false); return; }
 
   const cx=SB+(W-SB)/2, cy=H/2;
-  const candidates=posts.map(d=>({d,p:t.apply([d.x,d.y])}))
-    .filter(({d,p})=>matches(d)&&d!==prominent&&p[0]>SB-120&&p[0]<W+120&&p[1]>-80&&p[1]<H+80)
-    .sort((a,b)=>Math.hypot(a.p[0]-cx,a.p[1]-cy)-Math.hypot(b.p[0]-cx,b.p[1]-cy));
+  const byYear=new Map();
+  posts.forEach(d=>{
+    if(!matches(d)||d===prominent) return;
+    const p=t.apply([d.x,d.y]);
+    if(p[0]<SB-120||p[0]>W+120||p[1]<-80||p[1]>H+80) return;
+    let arr=byYear.get(d.year); if(!arr) byYear.set(d.year,arr=[]);
+    arr.push({d,p,dist:Math.hypot(p[0]-cx,p[1]-cy)});
+  });
+  byYear.forEach(list=>list.sort((a,b)=>a.dist-b.dist||(b.d.iso||"").localeCompare(a.d.iso||"")));
+  // round-robin: every visible cluster gets its 1st label before any cluster gets its 2nd
+  const queues=[...byYear.values()], candidates=[];
+  for(let r=0;queues.some(q=>r<q.length);r++)
+    for(const q of queues) if(r<q.length) candidates.push(q[r]);
 
   const selected=new Map(), placed=hoverBox?[hoverBox]:[];
   for(const c of candidates){
-    if(selected.size>=MAX_VISIBLE_LABELS) break;
+    if(selected.size>=budget) break;
     const w=labelWidth(c.d), spot=pickLabelSpot(c.p,w,placed);
     if(!spot) continue;
     selected.set(c.d,{x:spot.x,y:spot.y});
     placed.push(spot.box);
   }
 
-  label
-    .attr("x",d=>selected.get(d)?.x||0)
-    .attr("y",d=>selected.get(d)?.y||0)
-    .style("display",d=>selected.has(d)?null:"none");
+  label.each(function(d){
+    const s=selected.get(d);
+    if(s){ this.setAttribute("x",s.x); this.setAttribute("y",s.y); }
+  });
+  label.classed("on",d=>selected.has(d));
 }
 
 // ---- hover: highlight node + its year cluster, fade the rest ----
@@ -303,6 +325,7 @@ function fitTransform(scale=1){
   const b=nodeG.node().getBBox(), availW=Math.max(240,W-SB);
   if(!b.width||!b.height) return null;
   const k=Math.min(availW/b.width,H/b.height)*0.82*scale;
+  if(scale===1) kFit=k;  // cache the overview scale for the label budget
   return d3.zoomIdentity.translate(SB+availW/2-k*(b.x+b.width/2), H/2-k*(b.y+b.height/2)).scale(k);
 }
 function fitAll(duration=700,onEnd){
