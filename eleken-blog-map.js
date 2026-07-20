@@ -4,7 +4,7 @@
 let SB = 300;
 
 const COLORS = {
-  2020:"#7c83ff", 2021:"#36b3ff", 2022:"#28c896", 2023:"#f2b53b",
+  2020:"#6b5bff", 2021:"#36b3ff", 2022:"#28c896", 2023:"#f2b53b",
   2024:"#ff7a59", 2025:"#c879ff", 2026:"#19d3e0", 0:"#ffffff"
 };
 const yearLabel = y => y===0 ? "Без дати" : String(y);
@@ -63,8 +63,9 @@ const hubPos = {};
 const makeRng = s => { let x = s >>> 0; return () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x / 4294967296; }; };
 (function(){
   const rng=makeRng(20241015);
-  const px0=SB+100, px1=W*2.0-100;
-  const py0=100, py1=H*2.0-100;
+  // fixed world size → identical layout in every viewport (framing auto-fits)
+  const px0=100, px1=2400-100;
+  const py0=100, py1=1600-100;
   const gw=px1-px0, gh=py1-py0;
   const minD=Math.min(gw,gh)*0.42;
   const pl=[];

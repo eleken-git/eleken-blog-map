@@ -520,6 +520,8 @@ git commit -m "feat: pulse on every focus with tuned zoom easing; drop duplicate
 
 ### Task 5: 2020 color nudge + full verification sweep
 
+> **Executed with an addition (2026-07-20):** the sweep's determinism check caught that `hubPos` world bounds were derived from the viewport at load (`W*2`, `H*2`), so different window sizes produced different maps. The cluster-position IIFE now uses fixed world constants (`px1=2400-100`, `py1=1600-100`), making the layout identical in every viewport (framing auto-fits). Verified: identical position hash across reloads in different pane states; `place()` averages ~0.5 ms.
+
 **Files:**
 - Modify: `eleken-blog-map.js` (COLORS, line 7)
 
