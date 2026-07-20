@@ -141,6 +141,31 @@ yrG.selectAll("text").data(years).join("text").attr("class","yrlbl")
 const yrText={};
 yrG.selectAll("text").each(function(y){ yrText[y]=this; });
 
+// rounded-rect exclusion around each year glyph so dots ring the text instead of covering it
+const holeSize={}, holePosts={};
+years.forEach(y=>{
+  const b=yrText[y].getBBox();
+  const gw=b.width/2, gh=b.height*0.36;  // glyph ink half-extents (cap-height approx)
+  holeSize[y]={px:gw+20, py:gh+14, gw, gh};
+  holePosts[y]=posts.filter(p=>p.year===y);
+});
+function forceLabelHole(){
+  return alpha=>{
+    years.forEach(y=>{
+      const ps=holePosts[y]; if(!ps.length) return;
+      let cx=0,cy=0; ps.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=ps.length; cy/=ps.length;
+      const {px,py}=holeSize[y];
+      ps.forEach(p=>{
+        const u=(p.x-cx)/px, v=(p.y-cy)/py, m=Math.max(Math.abs(u),Math.abs(v));
+        if(m>=1) return;
+        const d=Math.max(m,0.05), push=(1-d)*alpha*1.2;
+        p.vx+=(u/d)*push*px;
+        p.vy+=(v/d)*push*py;
+      });
+    });
+  };
+}
+
 const nodeG = root.append("g");
 const node = nodeG.selectAll("circle").data(posts).join("circle")
   .attr("class","node").attr("r",5).attr("fill",d=>COLORS[d.year]||"var(--dot)")
@@ -184,6 +209,7 @@ const sim = d3.forceSimulation(posts)
   .force("collide", d3.forceCollide().radius(18).iterations(3))
   .force("x", d3.forceX(d=>hubPos[d.year].x).strength(.12))
   .force("y", d3.forceY(d=>hubPos[d.year].y).strength(.12))
+  .force("label-hole", forceLabelHole())
   .on("tick", ticked);
 
 // pre-settle synchronously past the expansion overshoot so the first painted
